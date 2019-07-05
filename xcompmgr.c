@@ -178,6 +178,12 @@ determine_mode(Display *dpy, win *w);
 static double
 get_opacity_percent(Display *dpy, win *w, double def);
 
+static Atom
+get_state_prop(Display *dpy, Window w);
+
+static int
+get_class_prop(Display *dpy, win *w);
+
 static XserverRegion
 win_extents (Display *dpy, win *w);
 
@@ -711,6 +717,40 @@ solid_picture (Display *dpy, Bool argb, double a, double r, double g, double b)
     return picture;
 }
 
+static Picture
+firefox_mask (Display *dpy)
+{
+    Pixmap			pixmap;
+    Picture			picture;
+    XRenderPictureAttributes	pa;
+    XRenderColor		c;
+
+    pixmap = XCreatePixmap (dpy, root, 1, 1440, 8);
+    if (!pixmap)
+	return None;
+
+    pa.repeat = True;
+    picture = XRenderCreatePicture (dpy, pixmap,
+				    XRenderFindStandardFormat (dpy, PictStandardA8),
+				    CPRepeat,
+				    &pa);
+    if (!picture)
+    {
+	XFreePixmap (dpy, pixmap);
+	return None;
+    }
+
+    c.alpha = 0xffff;
+    c.red = 0;
+    c.green = 0;
+    c.blue = 0;
+    XRenderFillRectangle (dpy, PictOpSrc, picture, &c, 0, 0, 1, 1440);
+    c.alpha = 0xe300;
+    XRenderFillRectangle (dpy, PictOpSrc, picture, &c, 0, 0, 1, 36);
+    XFreePixmap (dpy, pixmap);
+    return picture;
+}
+
 static void
 discard_ignore (Display *dpy, unsigned long sequence)
 {
@@ -1077,6 +1117,7 @@ paint_all (Display *dpy, XserverRegion region)
 	if (w->opacity != OPAQUE && !w->alphaPict)
 	    w->alphaPict = solid_picture (dpy, False,
 					  (double) w->opacity / OPAQUE, 0, 0, 0);
+	get_class_prop(dpy, w);
 	if (w->mode == WINDOW_TRANS)
 	{
 	    int	x, y, wid, hei;
@@ -1277,6 +1318,43 @@ unmap_win (Display *dpy, Window id, Bool fade)
 	finish_unmap_win (dpy, w);
 }
 
+static int
+get_class_prop(Display *dpy, win *w)
+{
+	XClassHint ch = {NULL, NULL};
+	const char *class;
+	const char ff_class[] = "Firefox";
+
+	Window root_return, parent_return;
+	Window *children = NULL;
+	unsigned int nchildren;
+
+	if (!XQueryTree(dpy, w->id, &root_return, &parent_return, &children, &nchildren)) {
+		if (children)
+			XFree((void *)children);
+		return 1;
+	}
+
+	for (int i = 0; i < nchildren; i++) {
+		XGetClassHint(dpy, children[i], &ch);
+		class = ch.res_class;
+		if (class != NULL) {
+			if (strstr(class, ff_class) != NULL &&
+				       get_state_prop(dpy, w->id) != XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False))
+				w->alphaPict = firefox_mask(dpy);
+		}
+		if (ch.res_class)
+			XFree(ch.res_class);
+		if (ch.res_name)
+			XFree(ch.res_name);
+	}
+
+	if (children)
+		XFree((void *)children);
+
+	return 1;
+}
+
 /* Get the opacity prop from window
    not found: default
    otherwise the value
@@ -1338,6 +1416,26 @@ get_wintype_prop(Display * dpy, Window w)
 	return a;
     }
     return winNormalAtom;
+}
+
+static Atom
+get_state_prop(Display *dpy, Window w)
+{
+	Atom actual;
+	int format;
+	unsigned long n, left;
+
+	unsigned char *data;
+	int result = XGetWindowProperty (dpy, w, XInternAtom(dpy, "_NET_WM_STATE", False),
+			0L, 1L, False, XA_ATOM, &actual, &format, &n, &left, &data);
+
+	if (result == Success && data != (unsigned char *)None) {
+		Atom a;
+		memcpy(&a, data, sizeof(Atom));
+		XFree((void *)data);
+		return a;
+	}
+	return NULL;
 }
 
 static void
