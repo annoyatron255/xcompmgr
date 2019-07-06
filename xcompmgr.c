@@ -1339,9 +1339,14 @@ get_class_prop(Display *dpy, win *w)
 		XGetClassHint(dpy, children[i], &ch);
 		class = ch.res_class;
 		if (class != NULL) {
-			if (strstr(class, ff_class) != NULL &&
-				       get_state_prop(dpy, w->id) != XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False))
-				w->alphaPict = firefox_mask(dpy);
+			if (strstr(class, ff_class) != NULL) {
+				if (get_state_prop(dpy, children[i]) != 
+						XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False)) {
+					w->alphaPict = firefox_mask(dpy);
+				} else {
+					w->alphaPict = solid_picture(dpy, False, 1,0,0,0);
+				}
+			}
 		}
 		if (ch.res_class)
 			XFree(ch.res_class);
