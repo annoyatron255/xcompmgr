@@ -725,7 +725,7 @@ firefox_mask (Display *dpy)
     XRenderPictureAttributes	pa;
     XRenderColor		c;
 
-    pixmap = XCreatePixmap (dpy, root, 1, 1440, 8);
+    pixmap = XCreatePixmap (dpy, root, 1, root_height, 8);
     if (!pixmap)
 	return None;
 
@@ -744,7 +744,7 @@ firefox_mask (Display *dpy)
     c.red = 0;
     c.green = 0;
     c.blue = 0;
-    XRenderFillRectangle (dpy, PictOpSrc, picture, &c, 0, 0, 1, 1440);
+    XRenderFillRectangle (dpy, PictOpSrc, picture, &c, 0, 0, 1, root_height);
     c.alpha = 0xe300;
     XRenderFillRectangle (dpy, PictOpSrc, picture, &c, 0, 0, 1, 36);
     XFreePixmap (dpy, pixmap);
